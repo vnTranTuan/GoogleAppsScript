@@ -1,0 +1,141 @@
+<!-- 
+  SIDEBAR.HTML: Giao diện người dùng cho Google Apps Script
+  Sử dụng Tailwind CSS (thông qua CDN) để tạo giao diện hiện đại, tối ưu cho di động.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- Tải Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Sử dụng font Inter cho thẩm mỹ */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      background-color: #f7f7f7;
+    }
+    /* Đảm bảo sidebar không quá rộng */
+    .sidebar-container {
+      width: 100%;
+      min-width: 250px;
+      padding: 0.5rem;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3b82f6; /* Màu xanh dương của Tailwind */
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="sidebar-container">
+
+  <!-- Tiêu đề Sidebar -->
+  <h1 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Sidebar của tôi</h1>
+
+  <!-- Khu vực thông báo trạng thái -->
+  <div id="status-area" class="p-3 mb-4 rounded-lg text-sm transition-colors duration-300 bg-gray-100 text-gray-700">
+    Trạng thái: Sẵn sàng thực thi...
+  </div>
+
+  <!-- Nút Tác vụ -->
+  <div class="space-y-3">
+    
+    <!-- Nút 1: Lấy Thông tin User -->
+    <button id="btn-user" 
+            class="w-full flex justify-center items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150"
+            onclick="runTask(this, 'getUserInfo')">
+      <span class="button-content">
+        👤 Lấy Thông tin Người dùng
+      </span>
+    </button>
+
+    <!-- Nút 2: Chức năng khác -->
+    <button id="btn-copy" 
+            class="w-full flex justify-center items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150"
+            onclick="runTask(this, 'alertAnotherFunction')">
+      <span class="button-content">
+        Chức năng khác ...
+      </span>
+    </button>
+    
+  </div>
+
+  <script>
+    // Hàm trung gian quản lý trạng thái nút và gọi server
+    function runTask(buttonElement, functionName) {
+      // 1. Lưu nội dung gốc và vô hiệu hóa nút
+      buttonElement.originalHTML = buttonElement.querySelector('.button-content').innerHTML;
+      buttonElement.disabled = true;
+      
+      // Vô hiệu hóa hover để tránh nhầm lẫn
+      buttonElement.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+      buttonElement.classList.add('bg-gray-400');
+
+      // 2. Thêm biểu tượng loading
+      buttonElement.querySelector('.button-content').innerHTML = `
+        <div class="flex items-center space-x-2">
+          <div class="loader"></div>
+          <span>Đang thực thi...</span>
+        </div>
+      `;
+
+      // 3. Gọi hàm Apps Script Server-side
+      google.script.run
+        .withSuccessHandler(showStatus.bind(null, buttonElement))
+        .withFailureHandler(showStatus.bind(null, buttonElement))
+        [functionName](); 
+    }
+
+    // Hàm xử lý phản hồi từ server (dù thành công hay thất bại)
+    function showStatus(buttonElement, message) {
+      const statusArea = document.getElementById('status-area');
+      let statusMessage;
+      let isError = false;
+
+      // 1. LUÔN LUÔN BẬT LẠI NÚT VÀ KHÔI PHỤC NỘI DUNG (Ưu tiên 1)
+      // Việc này phải làm đầu tiên để tránh nút bị kẹt.
+      if (buttonElement) {
+        buttonElement.disabled = false;
+        buttonElement.querySelector('.button-content').innerHTML = buttonElement.originalHTML;
+        // Khôi phục màu sắc gốc (nếu là màu indigo)
+        buttonElement.classList.remove('bg-gray-400');
+        buttonElement.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+      }
+
+      // 2. Xử lý message trả về
+      if (typeof message === 'object' && message instanceof Error) {
+        // Xử lý lỗi từ Server-side (Failure Handler)
+        statusMessage = 'LỖI: ' + message.message;
+        isError = true;
+      } else {
+        // Xử lý thành công (Success Handler)
+        statusMessage = message;
+        // Kiểm tra nếu nội dung thành công vẫn chứa lỗi (ví dụ: lỗi cấu hình do người dùng tạo)
+        if (typeof statusMessage === 'string' && statusMessage.includes('LỖI')) {
+          isError = true;
+        }
+      }
+
+      // 3. Hiển thị trạng thái
+      statusArea.textContent = 'Trạng thái: ' + statusMessage;
+      
+      // Thay đổi màu nền dựa trên trạng thái (Thành công/Thất bại)
+      if (isError) {
+        statusArea.classList.remove('bg-gray-100', 'text-gray-700', 'bg-green-100', 'text-green-700');
+        statusArea.classList.add('bg-red-100', 'text-red-700', 'font-semibold');
+      } else {
+        statusArea.classList.remove('bg-gray-100', 'text-gray-700', 'bg-red-100', 'text-red-700');
+        statusArea.classList.add('bg-green-100', 'text-green-700', 'font-semibold');
+      }
+    }
+  </script>
+</body>
+</html>
